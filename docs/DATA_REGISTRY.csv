@@ -1,0 +1,16 @@
+artifact_id,artifact_class,relative_location,content,release_route,notes
+D01,descriptor_table,data/sandstone/train/complete_features_canonical.csv,Canonical sandstone training descriptors and labels,Data archive,No raw images included
+D02,descriptor_table,data/sandstone/internal_test/complete_features_canonical.csv,Canonical sandstone parent-shared evaluation descriptors,Data archive,No raw images included
+D03,descriptor_table,data/sandstone/external_test/complete_features_canonical.csv,Canonical sandstone parent-disjoint evaluation descriptors,Data archive,No raw images included
+D04,descriptor_table,data/carbonate/train/complete_features_canonical.csv,Canonical carbonate training descriptors and labels,Data archive,No raw images included
+D05,descriptor_table,data/carbonate/internal_test/complete_features_canonical.csv,Canonical carbonate parent-shared evaluation descriptors,Data archive,No raw images included
+D06,descriptor_table,data/carbonate/external_test/complete_features_canonical.csv,Canonical carbonate parent-disjoint evaluation descriptors,Data archive,No raw images included
+D07,split_definition,final_results_20260803/01_dataset_and_splits/parent_rock_split_membership.csv,Parent-level split membership,Data archive,Required for leakage-free reproduction
+D08,descriptor_dictionary,final_results_20260803/01_dataset_and_splits/descriptor_catalog.csv,Descriptor definitions and units,Data archive,Use as the canonical schema reference
+D09,search_archive,final_results_20260803/02_symbolic_regression/,Pareto equations, frequencies, summaries, and metadata,Data archive,Machine-readable outputs
+D10,selection_archive,final_results_20260803/03_formula_selection/,Representative-selection evidence and sensitivity,Data archive,Selection must use training evidence only
+D11,robustness_archive,final_results_20260803/04_robustness/,Noise, complexity, and target-permutation outputs,Data archive,Supplementary-ready
+D12,ablation_archive,final_results_20260803/05_ablation/,Descriptor-removal and group-ablation outputs,Data archive,Supplementary-ready
+D13,baseline_archive,final_results_20260803/06_model_comparison_grouped_cv/,Grouped-CV metrics, predictions, folds, and tuning,Data archive,20-descriptor baseline comparison
+D14,TiPM_controls,final_results_20260803/07_tipm_supplementary_controls/,Nested forms, sparse controls, and audit tables,Data archive,Current manuscript control analyses
+D15,raw_images,data/sandstone/ and data/carbonate/,Original segmented digital-rock volumes,Controlled archive,Approximately 17.6 GB; do not place in ordinary Git history
