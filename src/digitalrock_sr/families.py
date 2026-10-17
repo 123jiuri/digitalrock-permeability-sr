@@ -1,82 +1,117 @@
-"""Canonical formula-family analysis for PySR output tables."""
+"""Post-search algebraic summaries; no physical labels or formula is prescribed."""
 
-from __future__ import annotations
-
+import json
 from pathlib import Path
 
 import pandas as pd
+import sympy as sp
 
-from .descriptors import descriptor_class
-from .evaluation import canonical_formula, formula_skeleton
-
-
-def parse_descriptors(value: object) -> list[str]:
-    if pd.isna(value) or not str(value).strip():
-        return []
-    return [item.strip() for item in str(value).split(",") if item.strip()]
+from .descriptors import PARAM_NAMES
+from .evaluation import canonical_expression, parse_expression, used_descriptors
 
 
-def analyze_formula_families(input_dir: Path, output_dir: Path, lithology: str) -> pd.DataFrame:
-    formulas = pd.read_csv(input_dir / "formulas_all.csv")
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if "formula_canonical_8sig" not in formulas.columns:
-        formulas["formula_canonical_8sig"] = formulas["formula"].map(canonical_formula)
-    if "formula_skeleton" not in formulas.columns:
-        formulas["formula_skeleton"] = formulas["formula"].map(formula_skeleton)
+def family_key(expression):
+    """Ignore intercepts in affine search-coordinate forms; retain slopes.
 
-    train_col = f"R2_{lithology}_train"
-    internal_col = f"R2_{lithology}_internal"
-    external_col = f"R2_{lithology}_external"
-    records = []
-    seed_count = formulas["seed"].nunique()
-    for family, frame in formulas.groupby("formula_canonical_8sig", dropna=False):
-        descriptors = sorted({d for value in frame["used_descriptors"] for d in parse_descriptors(value)})
-        classes = sorted({descriptor_class(d) for d in descriptors})
-        has_geometry = "characteristic_geometric" in classes
-        has_transport = "connectivity_transport" in classes
-        has_spatial = "spatial_organization_complexity" in classes
-        if not descriptors:
-            block = "constant"
-        elif has_geometry and has_transport:
-            block = "geometry + transport"
-        elif has_geometry:
-            block = "geometry only"
-        elif has_transport:
-            block = "transport only"
-        else:
-            block = "other"
-        if has_spatial and descriptors:
-            block += " + spatial"
-        row = {
-            "formula_family": family,
-            "occurrence_count": len(frame),
-            "seed_coverage": frame["seed"].nunique(),
-            "seed_coverage_fraction": frame["seed"].nunique() / seed_count,
-            "min_complexity": frame["complexity"].min(),
-            "descriptor_count": len(descriptors),
-            "descriptors": ",".join(descriptors),
-            "descriptor_classes": ",".join(classes),
-            "functional_block": block,
-            "example_formula": frame.iloc[0]["formula"],
-        }
-        for column, reducer in ((train_col, "max"), (internal_col, "median"), (external_col, "median")):
-            if column in frame.columns:
-                row[column] = getattr(frame[column], reducer)()
-        if train_col in frame.columns:
-            row["high_R2_count"] = int((frame[train_col] >= 0.95).sum())
-        records.append(row)
+    Other expressions use the normalized algebraic skeleton. This is a generic
+    algebraic summary, not the manuscript's separate physical classification.
+    """
+    canonical, skeleton = canonical_expression(expression)
+    try:
+        expr, symbols = parse_expression(canonical)
+        coefficients = []
+        for name in PARAM_NAMES:
+            coefficient = sp.diff(expr, symbols[name])
+            if coefficient.free_symbols:
+                return "skeleton:" + skeleton
+            value = float(coefficient)
+            if abs(value) > 1e-10:
+                coefficients.append((name, f"{value:.6g}"))
+        return "affine:" + json.dumps(coefficients, separators=(",", ":"))
+    except (ValueError, TypeError, sp.SympifyError):
+        return "skeleton:" + skeleton
 
-    summary = pd.DataFrame(records).sort_values(
-        ["seed_coverage", "min_complexity"], ascending=[False, True]
-    )
-    summary.to_csv(output_dir / "family_summary.csv", index=False)
-    if train_col in summary.columns:
-        summary[summary[train_col] >= 0.95].to_csv(
-            output_dir / "high_performance_family_summary.csv", index=False
+
+def write_summaries(formulas, output_dir, expected_tasks=None):
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    required = {"fold", "seed", "formula", "complexity", "test_r2", "train_r2"}
+    if required - set(formulas):
+        raise ValueError(f"Missing Pareto columns: {sorted(required-set(formulas))}")
+    if formulas.empty:
+        raise ValueError("No Pareto records")
+    tasks = formulas[["fold", "seed"]].drop_duplicates()
+    total = len(tasks)
+    if expected_tasks is not None and total != expected_tasks:
+        raise ValueError("Task coverage does not match the completed run manifest")
+    frame = formulas.copy()
+    frame["family_key"] = frame["formula"].map(family_key)
+    frequencies = []
+    descriptors = frame["formula"].map(used_descriptors)
+    for name in PARAM_NAMES:
+        mask = descriptors.map(lambda names: name in names)
+        cover = frame.loc[mask, ["fold", "seed"]].drop_duplicates()
+        frequencies.append(
+            {
+                "descriptor": name,
+                "records_containing_descriptor": int(mask.sum()),
+                "pareto_record_count": len(frame),
+                "record_fraction": float(mask.mean()),
+                "tasks_containing_descriptor": len(cover),
+                "total_tasks": total,
+                "task_fraction": len(cover) / total,
+            }
         )
-    summary.groupby("functional_block", dropna=False).agg(
-        family_count=("formula_family", "count"),
-        max_seed_coverage=("seed_coverage", "max"),
-        high_R2_families=("high_R2_count", lambda values: int((values > 0).sum()) if len(values) else 0),
-    ).reset_index().to_csv(output_dir / "functional_block_summary.csv", index=False)
-    return summary
+    pd.DataFrame(frequencies).sort_values("records_containing_descriptor", ascending=False).to_csv(
+        out / "descriptor_frequency.csv", index=False
+    )
+    records = []
+    for key, group in frame.groupby("family_key", sort=True):
+        per_task = group.groupby(["fold", "seed"])["test_r2"].median()
+        records.append(
+            {
+                "family_key": key,
+                "pareto_records": len(group),
+                "task_coverage": len(per_task),
+                "total_tasks": total,
+                "task_fraction": len(per_task) / total,
+                "fold_coverage": group["fold"].nunique(),
+                "seed_coverage": group["seed"].nunique(),
+                "min_complexity": int(group["complexity"].min()),
+                "median_task_held_out_r2": float(per_task.median()),
+                "example_formula": group.iloc[0]["formula"],
+            }
+        )
+    pd.DataFrame(records).sort_values(
+        ["task_coverage", "min_complexity"], ascending=[False, True]
+    ).to_csv(out / "family_summary.csv", index=False)
+    frame.groupby(["fold", "seed"], as_index=False).agg(
+        pareto_records=("formula", "size"),
+        best_training_r2=("train_r2", "max"),
+        best_held_out_r2=("test_r2", "max"),
+    ).to_csv(out / "task_summary.csv", index=False)
+    combos = frame.assign(descriptor_combination=descriptors.map(lambda names: ",".join(names)))
+    combos.groupby("descriptor_combination", as_index=False).agg(
+        pareto_records=("formula", "size")
+    ).to_csv(out / "descriptor_combinations.csv", index=False)
+    return pd.DataFrame(records)
+
+
+def analyze_formula_families(input_dir, output_dir):
+    source = Path(input_dir)
+    metadata = json.loads((source / "experiment_metadata.json").read_text(encoding="utf-8"))
+    from .lopo import task_complete
+
+    if not all(task_complete(source, t, metadata["run_identity"]) for t in metadata["tasks"]):
+        raise ValueError("Analyze only a complete, unmodified LOPO task archive")
+    # Re-read authoritative per-task outputs instead of trusting an edited aggregate.
+    from .lopo import task_dir
+
+    frame = pd.concat(
+        [
+            pd.read_csv(task_dir(source, t["fold"], t["seed"]) / "pareto.csv")
+            for t in metadata["tasks"]
+        ],
+        ignore_index=True,
+    )
+    return write_summaries(frame, output_dir, metadata["task_count"])

@@ -1,0 +1,10 @@
+[deps]
+LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"
+
+[compat]
+julia = "=1.12.6"
+LoopVectorization = "=0.12.173"
+PythonCall = "=0.9.26"
+SymbolicRegression = "=1.11.3"

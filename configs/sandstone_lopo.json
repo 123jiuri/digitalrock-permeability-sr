@@ -1,0 +1,17 @@
+{
+  "name": "sandstone_lopo_fixed_fold_shared_10x12",
+  "lithology": "sandstone",
+  "folds": 10,
+  "seeds": [41, 42, 43, 123, 456, 789, 1111, 2222, 3333, 4444, 5555, 6666],
+  "iterations": 500,
+  "maxsize": 15,
+  "populations": 30,
+  "population_size": 50,
+  "tournament_selection_n": 15,
+  "parsimony": 0.001,
+  "descriptor_version": "existing_canonical_20260727_user_validated",
+  "target_unit": "m2",
+  "balance_sampling_mode": "fixed_per_fold_shared",
+  "balance_seed_base": 700000,
+  "expected_rocks": ["Bandera Brown", "Berea", "Berea Upper Gray", "Buff Berea", "Castle Gate", "Kirby", "Leopard", "Parker", "Zebra A", "Zebra B"]
+}

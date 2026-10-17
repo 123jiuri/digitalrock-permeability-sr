@@ -1,6 +1,6 @@
 """Public, data-free tools for the digital-rock symbolic-regression workflow."""
 
-from .descriptors import DESCRIPTOR_CLASSES, PARAM_NAMES
-from .preprocessing import fit_preprocessor, transform_frame
+from .descriptors import PARAM_NAMES
 
-__all__ = ["DESCRIPTOR_CLASSES", "PARAM_NAMES", "fit_preprocessor", "transform_frame"]
+__version__ = "0.2.0"
+__all__ = ["PARAM_NAMES"]

@@ -27,7 +27,19 @@ build/
 .DS_Store
 Thumbs.db
 
-# The public schema is intentionally header-only and contains no data.
-!examples/descriptor_schema.csv
-!docs/EXPERIMENT_REGISTRY.csv
-!docs/DATA_REGISTRY.csv
+# Code-only release: input/output tables, checkpoints and credentials stay local.
+*.pkl
+*.pickle
+*.jld2
+*.bson
+*.bak
+*.zip
+*.pdf
+*.docx
+*.png
+*.svg
+.env
+.env.*
+*.pem
+*.key
+julia/Manifest.toml
