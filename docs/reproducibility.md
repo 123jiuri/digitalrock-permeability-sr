@@ -1,58 +1,61 @@
-# Protocol and provenance
+# Reproducibility
 
-This code-only revision extracts the main sandstone LOPO search from the
-author's archived `redesign_pipeline.py`, `parallel_full_run.py` and
-`parallel_task_worker.py`. Its protocol reference is the configuration and
-metadata for `f25_fixed_fold_shared`, rather than the earlier public package's
-train/internal/external interface. The original research scripts and results
-remain unchanged outside this repository.
+The LOPO workflow follows the archived `f25_fixed_fold_shared` search protocol,
+implemented here as command-line scripts with a development-only input table.
 
-## Protocol retained
+## Search protocol
 
-- 20 descriptors, in their original input order; target `log10(k / m²)`.
-- Ten complete-rock hold-outs, sorted by rock name.
-- Search seeds: 41, 42, 43, 123, 456, 789, 1111, 2222, 3333, 4444, 5555, 6666.
-- Sampling seeds: 700000 plus sorted fold index. One saved training table is
-  shared across all search seeds in that fold.
-- The original NumPy `default_rng` sampling sequence and row order are retained.
-  Smaller rocks are resampled with replacement; maximum-size rocks are shuffled
-  without replacement. Euler preprocessing is fitted on this balanced table.
-- Training-only squared-error search; four arithmetic operators; maximum
-  complexity 15; 500 iterations; 30 populations of 50 expressions;
-  tournament size 15; parsimony 0.001; 64-bit arithmetic.
-- Variable, constant and operator node costs are all 1. Constant optimization,
-  simplification, BFGS settings, cycle count and stopping defaults are explicit in
-  `search_options`. Each PySR task is serial and deterministic.
-- Every returned Pareto member is retained, sorted by complexity and training
-  loss. Metrics on held-out data are calculated only after fitting.
+- Use the 20 descriptors in their recorded input order and target `log10(k / m²)`.
+- Sort rocks by name and hold out one complete rock per fold.
+- Set the sampling seed to 700000 plus the sorted fold index. Smaller training
+  rocks are sampled with replacement to match the largest count; maximum-size
+  rocks are shuffled without replacement.
+- Save one balanced training table per fold and share it across seeds 41, 42,
+  43, 123, 456, 789, 1111, 2222, 3333, 4444, 5555 and 6666.
+- Fit preprocessing on that table and apply it unchanged to the held-out rock.
+- Search using training squared error, four arithmetic operators, maximum
+  complexity 15, 500 iterations, 30 populations of 50 expressions, tournament
+  size 15, parsimony 0.001 and 64-bit arithmetic.
+- Run each PySR task serially with deterministic execution. Variable, constant
+  and operator costs are 1; additional optimizer settings are recorded in
+  `search_options` in the run metadata.
+- Retain every returned Pareto member and calculate held-out metrics after
+  fitting. These metrics support development-stage family comparisons;
+  independent evaluation of a selected equation is a separate stage.
 
-## Packaging changes
+Expressions predict log permeability from transformed descriptors. Affine
+expressions in log inputs can be converted to power laws; nonlinear expressions
+use their actual inverse transform. Family summaries group affine forms by
+slopes and other forms by normalized algebraic skeleton.
 
-Local project paths are replaced by CLI arguments. The default input is one
-explicit development-only table, with an optional merger for the original split
-files. Filename matching is one-to-one, and independent-test rocks are refused.
-Legacy descriptor aliases are removed. This avoids silently equating old names
-with the canonical descriptor definitions.
+## Reference environment
 
-Independent tests, carbonate runs, physical closure candidates, controls,
-baselines and figure/manuscript builders are not copied. The generic algebraic
-summary in this package is not the full manuscript's subsequent physical
-classification or competitive-family selection procedure.
+Python 3.13.13; NumPy 2.1.3; pandas 3.0.2; SymPy 1.14.0;
+scikit-learn 1.8.0; PySR 1.5.10; JuliaCall 0.9.26; Juliapkg 0.1.23.
+Julia 1.12.6; SymbolicRegression.jl 1.11.3; PythonCall.jl 0.9.26;
+LoopVectorization.jl 0.12.173.
 
-Hashes guard inputs, fold training tables, code, environments and completed
-Pareto files. An output directory with an unknown or changed identity is refused.
-Subprocesses isolate Julia tasks; status files are closed before workers exit.
-Failures and partial task sets are retained and are not aggregated as complete.
+`julia/Project.toml` specifies the core Julia dependencies. For a separate Julia
+installation, instantiate the project and configure `JULIA_PROJECT`,
+`PYTHON_JULIAPKG_PROJECT` and `PYTHON_JULIACALL_EXE` for the project and executable.
+The runner also supports an existing `julia_env/Project.toml` in the Python
+environment, which it reuses offline. Save the resolved Julia `Manifest.toml`
+with each local run archive to record transitive dependencies.
 
-## Run archive
+## Run archive and resuming
 
-Keep the input CSV separately together with its SHA-256, exact extraction
-definitions, effective JSON configuration, Python versions, Julia executable and
-version, Julia `Project.toml` and `Manifest.toml`, the generated fold tables and
-all per-task outputs. The repository pins the core dependency versions, not every
-transitive Julia dependency or machine-level numerical library.
+The runner records input, configuration, source-code and environment identities,
+along with the shared training tables and per-task outputs. Repeat the same
+command to resume: completed tasks are checked by hashes and skipped, while
+pending tasks run in isolated subprocesses. A changed run identity requires a
+new output directory.
 
-Code tests establish implementation checks, not recovery of published scientific
-results. A full rerun can be assessed only with the corresponding separately
-supplied input table and runtime. Do not treat task-best held-out R² as a final
-post-selection independent-test metric.
+`--dry-run` prepares folds and validates inputs without starting Julia.
+`--max-tasks 1` runs at most one pending task; exit code 2 indicates an incomplete
+task set. `--aggregate-only` rebuilds summaries once every task is complete.
+
+Keep the input CSV, descriptor definitions, generated metadata, Python and Julia
+versions, Julia project and manifest, fold tables and per-task outputs together
+in the local run archive. The unit tests check implementation behavior with
+synthetic inputs; assessing a full scientific rerun also requires the study
+input table and runtime.
